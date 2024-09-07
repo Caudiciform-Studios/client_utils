@@ -1,5 +1,4 @@
 use indexmap::IndexSet;
-use ordered_float::OrderedFloat;
 use std::collections::VecDeque;
 
 use bindings::{

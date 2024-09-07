@@ -26,6 +26,7 @@ dependencies = [
 [[package]]
 name = "bindings"
 version = "0.1.0"
+source = "git+https://github.com/Caudiciform-Studios/client_bindings.git#10d68bd383f1d9ff31aa5176f3e2cecc61237148"
 dependencies = [
  "anyhow",
  "serde",
