@@ -144,14 +144,14 @@ impl ExplorableMap {
         }
     }
 
-    pub fn nearest(&mut self, tys: &[&str]) -> Option<Loc> {
+    pub fn nearest(&mut self, tys: &[impl AsRef<str>]) -> Option<Loc> {
         let mut nearest = None;
         let mut nearest_ty = None;
         let mut nearest_d = std::f32::INFINITY;
         let (current_loc, _) = actor();
         for (loc, l_ty) in self.seen_items.iter() {
             if let Some(l_ty) = l_ty {
-                if let Some(i) = tys.iter().position(|ty| ty == l_ty) {
+                if let Some(i) = tys.iter().position(|ty| ty.as_ref() == l_ty) {
                     if nearest_ty.map(|ty_i| ty_i >= i).unwrap_or(true) {
                         let d = distance(current_loc, *loc);
                         if nearest_ty.map(|ty_i| ty_i > i).unwrap_or(true) || d < nearest_d {
@@ -167,7 +167,7 @@ impl ExplorableMap {
         nearest
     }
 
-    pub fn move_towards_nearest(&mut self, tys: &[&str]) -> Option<Command> {
+    pub fn move_towards_nearest(&mut self, tys: &[impl AsRef<str>]) -> Option<Command> {
         let nearest = self.nearest(tys);
 
         if let Some(loc) = nearest {

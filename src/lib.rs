@@ -2,25 +2,12 @@ use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
 use std::collections::VecDeque;
 
-#[cfg(not(feature = "wit-bindings"))]
-use serde::{Deserialize, Serialize};
-
-#[cfg(feature = "wit-bindings")]
 pub use bindings::Loc;
+pub use bindings;
 
-#[cfg(not(feature = "wit-bindings"))]
-#[derive(
-    Default, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug, Serialize, Deserialize,
-)]
-pub struct Loc {
-    pub x: i32,
-    pub y: i32,
-}
 
-#[cfg(feature = "wit-bindings")]
 pub mod behaviors;
 pub mod crdt;
-#[cfg(feature = "wit-bindings")]
 pub mod framework;
 
 pub struct LocSetIter<'a> {

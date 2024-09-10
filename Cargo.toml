@@ -4,14 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 
-[features]
-wit-bindings = ["bindings"]
-
 [dependencies]
 ordered-float = "4"
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
-bindings = { git = "https://github.com/Caudiciform-Studios/client_bindings.git", optional=true }
+bindings = { path = "../client_bindings"}
 anyhow = "1"
 bincode = "1"
 client_utils_derive = { path = "./client_utils_derive" }
