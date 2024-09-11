@@ -3,7 +3,8 @@ use std::collections::VecDeque;
 
 use bindings::{
     actions, actor, game::auto_rogue::types::ConvertParams, inventory, visible_creatures,
-    visible_items, ActionTarget, AttackParams, Command, Loc, MicroAction,
+    visible_items, ActionTarget, AttackParams, Command, Loc, MicroAction, EquipmentSlot,
+    get_equipment_state, Direction,
 };
 
 use crate::{distance, LocMap, LocSet};
@@ -31,7 +32,7 @@ macro_rules! find_action {
     ($t:pat, $item:expr) => {
         {
             let mut found = None;
-            'outer: for (i, action) in $item.actions.into_iter().enumerate() {
+            'outer: for (i, action) in $item.actions.iter().enumerate() {
                 for m in &action.micro_actions {
                     if matches!(m, $t) {
                         let m = m.clone();
@@ -45,12 +46,13 @@ macro_rules! find_action {
     };
 }
 
-pub fn avoidance_sets(creature_margin: u32) -> (IndexSet<Loc>, IndexSet<Loc>) {
+pub fn avoidance_sets(creature_margin: u32, target: Option<Loc>) -> (IndexSet<Loc>, IndexSet<Loc>) {
+    let (_, actor) = actor();
     let mut blocked = IndexSet::new();
     let mut creature_margins = IndexSet::new();
-    for (loc, _) in visible_creatures() {
+    for (loc, creature) in visible_creatures() {
         blocked.insert(loc);
-        if creature_margin > 0 {
+        if creature_margin > 0 && creature.faction != actor.faction {
             for dx in -(creature_margin as i32)..creature_margin as i32 + 1 {
                 for dy in -(creature_margin as i32)..creature_margin as i32 + 1 {
                     creature_margins.insert(Loc {
@@ -63,7 +65,7 @@ pub fn avoidance_sets(creature_margin: u32) -> (IndexSet<Loc>, IndexSet<Loc>) {
     }
 
     blocked.extend(visible_items().into_iter().filter_map(|(loc, item)| {
-        if !item.is_passable || item.name == "Exit" {
+        if !item.is_passable && item.is_furniture|| (item.name == "Exit" && Some(loc) != target) {
             Some(loc)
         } else {
             None
@@ -120,34 +122,6 @@ fn astar_update_path(
     }
 }
 
-pub fn attack_nearest() -> Option<Command> {
-    if let Some((id, _action, micro_action)) = find_action!(MicroAction::Attack(..)) {
-        let mut min_dist = std::f32::INFINITY;
-        let mut closest = None;
-        for (loc, creature) in visible_creatures() {
-            if creature.faction != actor().1.faction {
-                let d = distance(Loc { x: 0, y: 0 }, loc);
-                if d < min_dist {
-                    min_dist = d;
-                    closest = Some(loc);
-                }
-            }
-        }
-
-        if let Some(loc) = closest {
-            if let MicroAction::Attack(AttackParams { range, .. }) = micro_action {
-                if range as f32 >= min_dist {
-                    return Some(Command::UseAction((
-                        id as u32,
-                        Some(ActionTarget::Location(loc)),
-                    )));
-                }
-            }
-        }
-    }
-    None
-}
-
 pub fn convert() -> Option<Command> {
     let inventory = inventory();
     if let Some((id, _, ma)) = find_action!(MicroAction::Convert(_)) {
@@ -171,6 +145,66 @@ pub fn convert() -> Option<Command> {
                 )));
             }
         }
+    }
+    None
+}
+
+pub fn equip(item: i64, slot: EquipmentSlot) -> Option<Command> {
+    let equipment_state = get_equipment_state();
+    let is_equipped = match slot {
+        EquipmentSlot::RightHand => equipment_state.right_hand == Some(item),
+        EquipmentSlot::LeftHand => equipment_state.left_hand == Some(item),
+    };
+
+    if !is_equipped && let Some((id, _, _)) = find_action!(MicroAction::Equip) {
+        return Some(Command::UseAction((
+            id as u32,
+            Some(ActionTarget::EquipmentSlotAndItem((slot, item))),
+        )));
+    } else {
+        None
+    }
+}
+
+pub fn attack_nearest() -> Option<Command> {
+    let (current_loc, actor) = actor();
+
+    let mut nearest = None;
+    let mut nearest_dist = f32::MAX;
+    for (loc, creature) in visible_creatures() {
+        if creature.faction != actor.faction {
+            let d = distance(loc, current_loc);
+            if d < nearest_dist {
+                nearest_dist = d;
+                nearest = Some(creature.id);
+            }
+        }
+    }
+
+    if let Some(nearest) = nearest {
+        for (id, action) in actions().into_iter().enumerate() {
+            for m in action.micro_actions {
+                if let MicroAction::Attack(AttackParams { range, .. }) = m {
+                    if range >= nearest_dist as u32 {
+                        return Some(Command::UseAction((
+                            id as u32,
+                            Some(ActionTarget::Creature(nearest)),
+                        )));
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn wander() -> Option<Command> {
+    if let Some((id, _, _)) = find_action!(MicroAction::Walk) {
+        let dir = [Direction::North, Direction::NorthEast, Direction::SouthEast, Direction::South, Direction::SouthWest, Direction::West, Direction::NorthWest][fastrand::usize(0..9)];
+        return Some(Command::UseAction((
+            id as u32,
+            Some(ActionTarget::Direction(dir)),
+        )));
     }
     None
 }

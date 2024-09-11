@@ -1,8 +1,9 @@
 use indexmap::IndexSet;
 use ordered_float::OrderedFloat;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashMap};
 use std::marker::PhantomData;
+use anyhow::Result;
 
 use bindings::{
     actor, broadcast, get_game_state, item_at, load_store, save_store, visible_creatures,
@@ -78,12 +79,10 @@ pub trait Map {
     fn update(&mut self);
 }
 
-#[derive(Default, Debug, Serialize, Deserialize, CrdtContainer)]
+
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ExplorableMap {
-    #[crdt]
-    pub map: CrdtMap<Loc, bool, Lww>,
-    #[crdt]
-    pub seen_items: CrdtMap<Loc, Option<String>, Lww>,
+    pub maps: HashMap<i64, (CrdtMap<Loc, bool, Lww>, CrdtMap<Loc, Option<String>, Lww>, bool)>,
     pub unexplored_locs: IndexSet<Loc>,
     pub explore_target: Option<Loc>,
     pub current_path: Option<VecDeque<Loc>>,
@@ -91,28 +90,44 @@ pub struct ExplorableMap {
 
 impl Map for ExplorableMap {
     fn update(&mut self) {
+        let game_state = get_game_state();
+        let (map, seen_items, _) = &mut self.maps.entry(game_state.level_id).or_insert_with(|| (Default::default(), Default::default(), game_state.level_is_stable));
         let now = get_game_state().turn;
         for (loc, tile) in visible_tiles() {
             self.unexplored_locs.shift_remove(&loc);
-            self.map.insert(loc, tile.passable, now);
+            map.insert(loc, tile.passable, now);
             if tile.passable {
                 for dx in -1..2 {
                     for dy in -1..2 {
                         let mut n = loc;
                         n.x += dx;
                         n.y += dy;
-                        if !self.map.contains_key(&n) {
+                        if !map.contains_key(&n) {
                             self.unexplored_locs.insert(n);
                         }
                     }
                 }
                 if let Some(item) = item_at(loc) {
-                    self.seen_items.insert(loc, Some(item.name), now);
+                    seen_items.insert(loc, Some(item.name), now);
                 } else {
-                    self.seen_items.insert(loc, None, now);
+                    seen_items.insert(loc, None, now);
                 }
             }
         }
+
+        self.maps.retain(|id, (_, _, is_stable)| *id == game_state.level_id || *is_stable);
+    }
+}
+
+impl Crdt for ExplorableMap {
+    fn merge(&mut self, other: &Self) -> Result<()> {
+        for (id, (map, seen_items, _)) in self.maps.iter_mut() {
+            if let Some((other_map, other_seen_items, _)) = other.maps.get(id) {
+                map.merge(other_map)?;
+                seen_items.merge(other_seen_items)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -137,8 +152,12 @@ impl ExplorableMap {
         }
 
         if let Some(loc) = self.explore_target {
-            let (blocked, avoid) = avoidance_sets(1);
-            move_towards(&mut self.current_path, &self.map, &blocked, &avoid, loc)
+            let (blocked, avoid) = avoidance_sets(1, None);
+            if let Some((map, _, _)) = self.maps.get(&get_game_state().level_id) {
+                move_towards(&mut self.current_path, map, &blocked, &avoid, loc)
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -149,15 +168,17 @@ impl ExplorableMap {
         let mut nearest_ty = None;
         let mut nearest_d = std::f32::INFINITY;
         let (current_loc, _) = actor();
-        for (loc, l_ty) in self.seen_items.iter() {
-            if let Some(l_ty) = l_ty {
-                if let Some(i) = tys.iter().position(|ty| ty.as_ref() == l_ty) {
-                    if nearest_ty.map(|ty_i| ty_i >= i).unwrap_or(true) {
-                        let d = distance(current_loc, *loc);
-                        if nearest_ty.map(|ty_i| ty_i > i).unwrap_or(true) || d < nearest_d {
-                            nearest_ty = Some(i);
-                            nearest = Some(*loc);
-                            nearest_d = d;
+        if let Some((_, seen_items, _)) = self.maps.get(&get_game_state().level_id) {
+            for (loc, l_ty) in seen_items.iter() {
+                if let Some(l_ty) = l_ty {
+                    if let Some(i) = tys.iter().position(|ty| ty.as_ref() == l_ty) {
+                        if nearest_ty.map(|ty_i| ty_i >= i).unwrap_or(true) {
+                            let d = distance(current_loc, *loc);
+                            if nearest_ty.map(|ty_i| ty_i > i).unwrap_or(true) || d < nearest_d {
+                                nearest_ty = Some(i);
+                                nearest = Some(*loc);
+                                nearest_d = d;
+                            }
                         }
                     }
                 }
@@ -178,7 +199,11 @@ impl ExplorableMap {
     }
 
     pub fn move_towards(&mut self, loc: Loc) -> Option<Command> {
-        let (blocked, avoid) = avoidance_sets(1);
-        move_towards(&mut self.current_path, &self.map, &blocked, &avoid, loc)
+        if let Some((map, _, _)) = self.maps.get(&get_game_state().level_id) {
+            let (blocked, avoid) = avoidance_sets(1, Some(loc));
+            move_towards(&mut self.current_path, map, &blocked, &avoid, loc)
+        } else {
+            None
+        }
     }
 }

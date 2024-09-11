@@ -15,7 +15,7 @@ pub trait Crdt {
     fn cleanup(&mut self, _now: i64) {}
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ExpiringFWWRegister<T> {
     value: Option<T>,
     written: i64,
@@ -107,7 +107,7 @@ impl<T: Ord + Clone> Crdt for ExpiringSet<T> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SizedFWWExpiringSet<T: Ord>(BTreeMap<T, (i64, i64)>, usize);
 
 impl<T: Ord> SizedFWWExpiringSet<T> {
@@ -116,10 +116,18 @@ impl<T: Ord> SizedFWWExpiringSet<T> {
     }
 
     pub fn insert(&mut self, v: T, now: i64, expires: i64) {
-        self.0.insert(v, (now, expires));
+        if let Some((_, e)) = self.0.get_mut(&v) {
+            *e = expires;
+        } else if self.0.len() < self.1 {
+            self.0.insert(v, (now, expires));
+        }
     }
 
-    pub fn contains(&mut self, v: &T) -> bool {
+    pub fn contains<Q>(&mut self, v: &Q) -> bool
+    where
+        T: std::borrow::Borrow<Q>,
+        Q: Ord + ?Sized,
+        {
         self.0.contains_key(v)
     }
 }
@@ -127,7 +135,10 @@ impl<T: Ord> SizedFWWExpiringSet<T> {
 impl<T: Ord + Clone> Crdt for SizedFWWExpiringSet<T> {
     fn merge(&mut self, other: &Self) -> Result<()> {
         for (v, (written, expires)) in &other.0 {
-            if self.0.len() < self.1 {
+            if let Some((w, e)) = self.0.get_mut(v) {
+                *w = (*w).min(*written);
+                *e = (*e).max(*expires);
+            } else if self.0.len() < self.1 {
                 self.0.insert(v.clone(), (*written, *expires));
             } else {
                 let mut newest = None;
@@ -155,7 +166,86 @@ impl<T: Ord + Clone> Crdt for SizedFWWExpiringSet<T> {
     }
 
     fn cleanup(&mut self, now: i64) {
-        self.0.retain(|_, (_, expires)| *expires < now);
+        self.0.retain(|_, (_, expires)| *expires > now);
+    }
+}
+
+
+#[cfg(test)]
+mod sized_set_tests {
+    use super::*;
+
+    #[test]
+    fn test_insert_with_capacity() {
+        let mut s = SizedFWWExpiringSet::new(3);
+        let now = 0;
+        s.insert("a".to_string(), now, now+10);
+        assert!(s.contains("a"));
+        s.insert("b".to_string(), now, now+10);
+        assert!(s.contains("b"));
+        s.insert("c".to_string(), now, now+10);
+        assert!(s.contains("c"));
+        s.insert("d".to_string(), now, now+10);
+        assert!(!s.contains("d"));
+    }
+
+    #[test]
+    fn test_cleanup() {
+        let mut s = SizedFWWExpiringSet::new(3);
+        let now = 0;
+        s.insert("a".to_string(), now, now+1);
+        s.insert("b".to_string(), now, now+2);
+        s.insert("c".to_string(), now, now+3);
+
+        s.cleanup(now);
+        assert!(s.contains("a"));
+        assert!(s.contains("b"));
+        assert!(s.contains("c"));
+
+        let now = 1;
+        s.cleanup(now);
+        assert!(!s.contains("a"));
+        assert!(s.contains("b"));
+        assert!(s.contains("c"));
+
+        let now = 2;
+        s.cleanup(now);
+        assert!(!s.contains("a"));
+        assert!(!s.contains("b"));
+        assert!(s.contains("c"));
+
+        let now = 3;
+        s.cleanup(now);
+        assert!(!s.contains("a"));
+        assert!(!s.contains("b"));
+        assert!(!s.contains("c"));
+
+    }
+
+    #[test]
+    fn test_merge() {
+        let mut a = SizedFWWExpiringSet::new(3);
+        a.insert("a".to_string(), 0, 10);
+        a.insert("b".to_string(), 1, 10);
+        a.insert("c".to_string(), 2, 10);
+
+        let mut b = SizedFWWExpiringSet::new(3);
+        b.insert("d".to_string(), 3, 10);
+
+        a.merge(&b).unwrap();
+        assert!(a.contains("a"));
+        assert!(a.contains("b"));
+        assert!(a.contains("c"));
+        assert!(!a.contains("d"));
+
+        let mut c = SizedFWWExpiringSet::new(3);
+        c.insert("d".to_string(), 0, 10);
+        a.merge(&c).unwrap();
+
+        assert!(a.contains("a"));
+        assert!(a.contains("b"));
+        assert!(!a.contains("c"));
+        assert!(a.contains("d"));
     }
 }
 

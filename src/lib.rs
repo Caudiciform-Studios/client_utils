@@ -1,3 +1,4 @@
+#![feature(let_chains)]
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
 use std::collections::VecDeque;
@@ -146,7 +147,7 @@ pub fn astar(
                     x: loc.x + dx,
                     y: loc.y + dy,
                 };
-                if explored_tiles.get_loc(&neighboor).unwrap_or(true)
+                if explored_tiles.get_loc(&neighboor).unwrap_or(false)
                     && !blocked.contains_loc(&neighboor)
                 {
                     let mut score = base_score;

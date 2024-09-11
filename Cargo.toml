@@ -8,7 +8,8 @@ edition = "2021"
 ordered-float = "4"
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
-bindings = { path = "../client_bindings"}
+bindings = {git = "https://github.com/Caudiciform-Studios/client_bindings.git"}
 anyhow = "1"
 bincode = "1"
 client_utils_derive = { path = "./client_utils_derive" }
+fastrand = "2"
