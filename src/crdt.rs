@@ -15,11 +15,21 @@ pub trait Crdt {
     fn cleanup(&mut self, _now: i64) {}
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ExpiringFWWRegister<T> {
     value: Option<T>,
     written: i64,
     expires: i64,
+}
+
+impl <T> Default for ExpiringFWWRegister<T> {
+    fn default() -> Self {
+        Self {
+            value: None,
+            written: i64::MAX,
+            expires: i64::MIN,
+        }
+    }
 }
 
 impl<T> ExpiringFWWRegister<T> {
@@ -59,8 +69,14 @@ impl<T: Clone + PartialEq> Crdt for ExpiringFWWRegister<T> {
     }
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ExpiringSet<T: Ord>(BTreeMap<T, i64>);
+
+impl <T: Ord> Default for ExpiringSet<T> {
+    fn default() -> Self {
+        ExpiringSet(BTreeMap::new())
+    }
+}
 
 impl<T: Ord> ExpiringSet<T> {
     pub fn insert(&mut self, v: T, expires: i64) {
