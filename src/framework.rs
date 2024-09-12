@@ -11,13 +11,24 @@ use bindings::{
 };
 
 use crate::{
-    self as client_utils,
     behaviors::{avoidance_sets, move_towards},
-    crdt::{Crdt, CrdtContainer, CrdtMap, Lww},
+    crdt::{Crdt, CrdtMap, Lww},
     distance,
 };
 
-pub struct Component<State, B, M>(PhantomData<State>, PhantomData<B>, PhantomData<M>);
+#[derive(Serialize, Deserialize)]
+pub struct DummyMap;
+impl Map for DummyMap {
+    fn update(&mut self) {
+    }
+}
+#[derive(Serialize, Deserialize)]
+pub struct DummyBroadcast;
+impl Crdt for DummyBroadcast {
+}
+
+
+pub struct Component<State, B = DummyBroadcast, M = DummyMap>(PhantomData<State>, PhantomData<B>, PhantomData<M>);
 
 impl<S, B, M> Guest for Component<S, B, M>
 where
@@ -63,7 +74,7 @@ where
     }
 }
 
-pub trait State<Broadcast, Map> {
+pub trait State<Broadcast=DummyBroadcast, Map=DummyMap> {
     fn run(&mut self) -> Command {
         Command::Nothing
     }

@@ -176,21 +176,28 @@ pub fn attack_nearest() -> Option<Command> {
             let d = distance(loc, current_loc);
             if d < nearest_dist {
                 nearest_dist = d;
-                nearest = Some(creature.id);
+                nearest = Some(loc);
             }
         }
     }
 
     if let Some(nearest) = nearest {
-        for (id, action) in actions().into_iter().enumerate() {
-            for m in action.micro_actions {
-                if let MicroAction::Attack(AttackParams { range, .. }) = m {
-                    if range >= nearest_dist as u32 {
-                        return Some(Command::UseAction((
-                            id as u32,
-                            Some(ActionTarget::Creature(nearest)),
-                        )));
-                    }
+        attack_target(nearest)
+    } else {
+        None
+    }
+}
+
+pub fn attack_target(target: Loc) -> Option<Command> {
+    let nearest_dist = distance(target, actor().0);
+    for (id, action) in actions().into_iter().enumerate() {
+        for m in action.micro_actions {
+            if let MicroAction::Attack(AttackParams { range, .. }) = m {
+                if range >= nearest_dist as u32 {
+                    return Some(Command::UseAction((
+                        id as u32,
+                        Some(ActionTarget::Location(target)),
+                    )));
                 }
             }
         }
@@ -200,7 +207,7 @@ pub fn attack_nearest() -> Option<Command> {
 
 pub fn wander() -> Option<Command> {
     if let Some((id, _, _)) = find_action!(MicroAction::Walk) {
-        let dir = [Direction::North, Direction::NorthEast, Direction::SouthEast, Direction::South, Direction::SouthWest, Direction::West, Direction::NorthWest][fastrand::usize(0..9)];
+        let dir = [Direction::North, Direction::NorthEast, Direction::SouthEast, Direction::South, Direction::SouthWest, Direction::West, Direction::NorthWest][fastrand::usize(0..7)];
         return Some(Command::UseAction((
             id as u32,
             Some(ActionTarget::Direction(dir)),

@@ -17,9 +17,9 @@ pub trait Crdt {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExpiringFWWRegister<T> {
-    value: Option<T>,
-    written: i64,
-    expires: i64,
+    pub value: Option<T>,
+    pub written: i64,
+    pub expires: i64,
 }
 
 impl <T> Default for ExpiringFWWRegister<T> {
@@ -37,7 +37,7 @@ impl<T> ExpiringFWWRegister<T> {
         self.value.as_ref()
     }
 
-    pub fn set(&mut self, now: i64, expires: i64, value: T) {
+    pub fn set(&mut self, value: T, now: i64, expires: i64) {
         self.value = Some(value);
         self.written = now;
         self.expires = expires;
@@ -70,7 +70,7 @@ impl<T: Clone + PartialEq> Crdt for ExpiringFWWRegister<T> {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ExpiringSet<T: Ord>(BTreeMap<T, i64>);
+pub struct ExpiringSet<T: Ord>(pub BTreeMap<T, i64>);
 
 impl <T: Ord> Default for ExpiringSet<T> {
     fn default() -> Self {
@@ -108,7 +108,7 @@ impl<T: Ord + Clone> Crdt for ExpiringSet<T> {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SizedFWWExpiringSet<T: Ord>(BTreeMap<T, (i64, i64)>, usize);
+pub struct SizedFWWExpiringSet<T: Ord>(pub BTreeMap<T, (i64, i64)>, pub usize);
 
 impl<T: Ord> SizedFWWExpiringSet<T> {
     pub fn new(size: usize) -> Self {
@@ -268,7 +268,7 @@ impl<'a, K, V> Iterator for CrdtMapIter<'a, K, V> {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CrdtMap<K: Ord, V, P>(BTreeMap<K, (V, i64)>, PhantomData<P>);
+pub struct CrdtMap<K: Ord, V, P>(pub BTreeMap<K, (V, i64)>, PhantomData<P>);
 
 impl<K: Ord, V, P> Default for CrdtMap<K, V, P> {
     fn default() -> Self {
