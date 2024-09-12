@@ -166,13 +166,13 @@ pub fn equip(item: i64, slot: EquipmentSlot) -> Option<Command> {
     }
 }
 
-pub fn attack_nearest() -> Option<Command> {
-    let (current_loc, actor) = actor();
+pub fn attack_nearest(exclude_factions: &[u32]) -> Option<Command> {
+    let (current_loc, _) = actor();
 
     let mut nearest = None;
     let mut nearest_dist = f32::MAX;
     for (loc, creature) in visible_creatures() {
-        if creature.faction != actor.faction {
+        if !exclude_factions.contains(&creature.faction) {
             let d = distance(loc, current_loc);
             if d < nearest_dist {
                 nearest_dist = d;
