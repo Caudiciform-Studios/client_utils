@@ -82,7 +82,6 @@ pub fn move_towards(
     avoid: &dyn LocSet,
     loc: Loc,
 ) -> Option<Command> {
-    println!("move towards: {loc:?}");
     if let Some(path) = current_path {
         if path.iter().last() != Some(&Loc { x: loc.x, y: loc.y }) {
             *current_path = None;
