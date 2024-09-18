@@ -165,7 +165,7 @@ pub fn equip(item: i64, slot: EquipmentSlot) -> Option<Command> {
     }
 }
 
-pub fn attack_nearest(exclude_factions: &[u32]) -> Option<Command> {
+pub fn attack_nearest(exclude_factions: &[i64]) -> Option<Command> {
     let (current_loc, _) = actor();
 
     let mut nearest = None;
@@ -206,7 +206,7 @@ pub fn attack_target(target: Loc) -> Option<Command> {
 
 pub fn wander() -> Option<Command> {
     if let Some((id, _, _)) = find_action!(MicroAction::Walk) {
-        let dir = [Direction::North, Direction::NorthEast, Direction::SouthEast, Direction::South, Direction::SouthWest, Direction::West, Direction::NorthWest][fastrand::usize(0..7)];
+        let dir = [Direction::North, Direction::NorthEast, Direction::East, Direction::SouthEast, Direction::South, Direction::SouthWest, Direction::West, Direction::NorthWest][fastrand::usize(0..8)];
         return Some(Command::UseAction((
             id as u32,
             Some(ActionTarget::Direction(dir)),
