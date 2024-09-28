@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use bindings::{
     actions, actor, game::auto_rogue::types::ConvertParams, inventory, visible_creatures,
     visible_items, ActionTarget, AttackParams, Command, Loc, MicroAction, EquipmentSlot,
-    get_equipment_state, Direction,
+    get_equipment_state, Direction, ConvertCost,
 };
 
 use crate::{distance, LocMap, LocSet};
@@ -126,6 +126,10 @@ pub fn convert() -> Option<Command> {
     if let Some((id, _, ma)) = find_action!(MicroAction::Convert(_)) {
         if let MicroAction::Convert(ConvertParams { input, .. }) = ma {
             let mut to_convert = None;
+            let input = match input {
+                ConvertCost::Fixed(input) => input,
+                ConvertCost::IncreasePerUse((input, _)) => input,
+            };
             for (n, _) in input {
                 if let Some(item) = inventory.iter().find(|i| {
                     i.resources
